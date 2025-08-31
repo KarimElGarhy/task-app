@@ -6,10 +6,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { Task } from './tasks/entities/task.entity';
 import { UsersModule } from './users/users.module';
+import { User } from './users/entities/user.entity';
 
 @Module({
   imports: [
     TasksModule,
+    UsersModule,
     ConfigModule.forRoot(),
     TypeOrmModule.forRoot({
       type: process.env.DB_TYPE as
@@ -24,10 +26,9 @@ import { UsersModule } from './users/users.module';
       username: process.env.DB_USERNAME || 'root',
       password: process.env.DB_PASSWORD || '',
       database: process.env.DB_NAME || 'task-app',
-      entities: [Task],
+      entities: [Task, User],
       synchronize: process.env.TYPEORM_SYNC === 'true' || true,
     }),
-    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

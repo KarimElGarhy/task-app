@@ -4,11 +4,13 @@ import { UpdateTaskDto } from './dto/update-task.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Task } from './entities/task.entity';
 import { Repository } from 'typeorm';
+import { User } from 'src/users/entities/user.entity';
 
 @Injectable()
 export class TasksService {
   constructor(
     @InjectRepository(Task) private taskRepository: Repository<Task>,
+    @InjectRepository(User) private userRepository: Repository<User>,
   ) {}
 
   create(CreateTaskDto: CreateTaskDto) {
@@ -16,7 +18,19 @@ export class TasksService {
     return this.taskRepository.save(task);
   }
 
-  async findAll({ title, status }: { title?: string; status?: string }) {
+  async findAll({
+    title,
+    status,
+    page = 1,
+    limit = 10,
+    search,
+  }: {
+    title?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+    search?: string;
+  }) {
     const query = this.taskRepository.createQueryBuilder('task');
 
     if (title) {
@@ -26,12 +40,29 @@ export class TasksService {
     if (status) {
       query.andWhere('task.status = :status', { status });
     }
+    if (search) {
+      query.andWhere(
+        'task.title LIKE :search OR task.description LIKE :search',
+        { search: `%${search}%` },
+      );
+    }
 
-    const tasks = await query.getMany();
+    const [tasks, total] = await query
+      .take(limit)
+      .skip(((page || 1) - 1) * (limit || 10))
+      .getManyAndCount();
+
     if (!tasks.length) {
       throw new NotFoundException('No tasks found.');
     }
-    return tasks;
+    return {
+      data: tasks,
+      meta: {
+        total,
+        page,
+        limit,
+      },
+    };
   }
 
   async findOne(id: number) {
@@ -56,6 +87,23 @@ export class TasksService {
     if (!task) {
       throw new NotFoundException(`Task with ID ${id} not found.`);
     }
-    await this.taskRepository.delete(task);
+    await this.taskRepository.softRemove(task);
+    return { message: `Task with ID ${id} has been deleted.` };
+  }
+
+  async findDeleted() {
+    const query = this.taskRepository.createQueryBuilder('task');
+
+    const [task, count] = await query
+      .where('task.deletedAt IS NOT NULL')
+      .withDeleted()
+      .getManyAndCount();
+
+    return {
+      data: task,
+      meta: {
+        total: count,
+      },
+    };
   }
 }
